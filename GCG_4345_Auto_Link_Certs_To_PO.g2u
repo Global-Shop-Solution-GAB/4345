@@ -1,0 +1,296 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+V.Global.sLine.Declare(String)
+V.Global.bError.Declare(Boolean, FALSE)
+V.Global.sFileNameSend.Declare(String)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+
+V.Local..BulkDeclareLong(iReturn)
+V.Local..BulkDeclareString(sSourceFile, sTargetFile,sProcessedFile,sTime, sDate, sFilePath)
+V.Local.bExists.Declare(Boolean)
+
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+'create Files
+Function.Intrinsic.Control.CallSub(check_dir)
+
+'move file
+F.Intrinsic.String.Build("{0}\Auto_Link\In_Progress\Auto_Link.csv",v.Caller.FilesDir,V.Local.sTargetFile) 
+
+' V.Local.sSourceFile.Set(C:\Users\stryon\Desktop\4345\certificates.csv)
+V.Local.sSourceFile.Set("\\Rdpserver2\printsnew\certs\certificates.csv")
+
+'check the file exists
+F.Intrinsic.File.Exists(V.Local.sSourceFile, V.Local.bExists)
+Function.Intrinsic.Control.If(V.Local.bExists, =, FALSE)
+	Function.Intrinsic.String.TimeStringSec(V.Ambient.Time,V.Local.sTime)
+	F.Intrinsic.String.Format(V.Ambient.Date, "YYYYMMDD", V.Local.sDate)
+	F.Intrinsic.String.Build("{0}\Auto_Link\Auto_Link_Errors\ERROR_Log_{1}{2}.txt",v.Caller.FilesDir,V.Local.sDate,V.Local.sTime,V.Local.sFilePath) 
+	F.Intrinsic.File.String2File(V.Local.sFilePath, "FILE NOT FOUND")
+	Function.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+
+Function.Intrinsic.File.MoveFile(V.Local.sSourceFile, V.Local.sTargetFile, V.Local.iReturn)
+		
+Function.Intrinsic.Control.CallSub(processfile, "sFile", V.Local.sTargetFile)
+Function.Intrinsic.Control.CallSub(saveerrors)
+
+Function.Intrinsic.String.TimeStringSec(V.Ambient.Time,V.Local.sTime)
+F.Intrinsic.String.Format(V.Ambient.Date, "YYYYMMDD", V.Local.sDate)
+F.Intrinsic.String.Build("{0}\Auto_Link\Processed\Processed_File_{1}{2}.txt",v.Caller.FilesDir,V.Local.sDate,V.Local.sTime,V.Local.sProcessedFile)
+
+Function.Intrinsic.File.MoveFile(V.Local.sTargetFile, V.Local.sProcessedFile, V.Local.iReturn)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4345_Auto_Link_Certs_To_PO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.UnLoad.Start
+F.Intrinsic.Control.SetErrorHandler("UnLoad_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("UnLoad_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4345_Auto_Link_Certs_To_PO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.UnLoad.End
+
+Program.Sub.ProcessFile.Start
+F.Intrinsic.Control.SetErrorHandler("ProcessFile_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local..BulkDeclareString(sRet, sRow, sId,sPO,sFileType, sDescFileName, sFilePath)
+V.Local..BulkDeclareLong(iC)
+
+'readFile
+Function.Intrinsic.File.File2String(V.Args.sFile, V.Local.sRet) 
+
+F.Intrinsic.String.Split(V.Local.sRet, V.Ambient.NewLine, V.Local.sRet)
+
+F.Intrinsic.Control.For(V.Local.iC, 0, V.Local.sRet.UBound, 1)
+	F.Intrinsic.Control.If(v.Local.sRet(v.Local.iC).Trim, !=, "")	
+	F.Intrinsic.String.Split(V.Local.sRet(V.Local.iC), ",", V.Local.sRow)
+		F.Intrinsic.String.LPad(V.Local.sRow(0), "0", 7,V.Local.sPO)	 
+'		F.Intrinsic.String.Build("C:\Users\stryon\Desktop\4345\{0}",v.Local.sRow(1), v.Local.sRow(1))
+		F.Intrinsic.String.Build("\\Rdpserver2\printsnew\certs\{0}",v.Local.sRow(1), v.Local.sRow(1)) 
+		
+		'check PO and File Path exists
+		F.Intrinsic.Control.CallSub(check,"PO",V.Local.sPO, "FilePath",V.Local.sRow(1))
+		
+		' if check returns true then do not create
+		Function.Intrinsic.Control.If(V.Global.bError, =,False)
+			'create doc control
+			Function.Global.DocumentControl.CreateReference(V.Local.sPO, 60, V.Local.sId)
+			Function.Intrinsic.File.GetPathFromFQN (V.Local.sRow(1), V.Local.sDescFileName)
+			F.Intrinsic.String.Split(V.Local.sRow(1), ".", V.Local.sFileType)
+			V.Local.sFileType.Set(V.Local.sFileType(V.Local.sFileType.UBound))
+			Function.Intrinsic.File.GetPathFromFQN (V.Local.sRow(1), V.Local.sFilePath)
+			F.Intrinsic.String.Split(V.Local.sRow(1), "\", V.Local.sDescFileName)
+			V.Local.sDescFileName.Set(V.Local.sDescFileName(V.Local.sDescFileName.UBound))
+			Function.Global.DocumentControl.AddDocument(V.Local.sId, V.Local.sRow(1), V.Local.sDescFileName, 10, V.Local.sFileType)
+		Function.Intrinsic.Control.EndIf
+		V.Global.bError.set(False)
+	F.Intrinsic.Control.EndIf	
+F.Intrinsic.Control.Next(V.Local.iC)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("ProcessFile_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4345_Auto_Link_Certs_To_PO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.ProcessFile.End
+
+Program.Sub.Check.Start
+F.Intrinsic.Control.SetErrorHandler("Check_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+V.Local..BulkDeclareString(sRet, ssql, sRetPO)
+V.Local.bExists.Declare(Boolean)
+
+'check PO exists
+F.Intrinsic.String.Build("Select PURCHASE_ORDER From V_PO_HEADER Where PURCHASE_ORDER = '{0}'",V.Args.PO, v.Local.ssql)
+Function.ODBC.Connection!Con.ExecuteAndReturn(v.Local.ssql,V.Local.sRetPO)
+Function.Intrinsic.Control.If(V.Args.PO, <>, V.Local.sRetPO)
+	V.Global.bError.set(TRUE)
+	F.Intrinsic.String.Build("{0}{1},{2},{3}{4}", V.Global.sLine,V.Args.PO, V.Args.FilePath,"PO NOT FOUND" ,V.Ambient.NewLine,V.Global.sLine)
+Function.Intrinsic.Control.EndIf
+
+'check file path exists
+Function.Intrinsic.File.Exists (V.Args.FilePath, V.Local.bExists)
+Function.Intrinsic.Control.If(V.Local.bExists, =, False)
+	V.Global.bError.set(TRUE)
+	F.Intrinsic.String.Build("{0}{1},{2},{3}{4}", V.Global.sLine,V.Args.PO, V.Args.FilePath,"File NOT FOUND" ,V.Ambient.NewLine,V.Global.sLine)
+Function.Intrinsic.Control.EndIf
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Check_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4345_Auto_Link_Certs_To_PO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Check.End
+
+Program.Sub.Check_Dir.Start
+F.Intrinsic.Control.SetErrorHandler("Check_Dir_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+v.Local.i.Declare(Long)
+v.Local.sDir.Declare(String)
+v.Local.sSubDir.Declare(String)  
+v.Local.bExists.Declare(Boolean)
+'Files\Auto_Link 
+F.Intrinsic.String.Build("{0}\Auto_Link",v.Caller.FilesDir,v.Local.sDir) 
+F.Intrinsic.File.DirExists(v.Local.sDir,v.Local.bExists) 
+F.Intrinsic.Control.If(v.Local.bExists,=,False) 
+	f.Intrinsic.File.CreateDir(v.Local.sDir) 
+Function.Intrinsic.Control.EndIf
+F.Intrinsic.String.Split("In_Progress*!*Processed*!*Auto_Link_Errors","*!*",v.Local.sSubDir) 
+F.Intrinsic.Control.For(v.Local.i,0,v.Local.sSubDir.UBound,1) 
+	F.Intrinsic.String.Build("{0}\{1}",v.Local.sDir,v.Local.sSubDir(v.Local.i).Trim,v.Local.sSubDir(v.Local.i)) 
+	f.Intrinsic.File.DirExists(v.Local.sSubDir(v.Local.i),v.Local.bExists) 
+	F.Intrinsic.Control.If(v.Local.bExists,=,False) 
+		f.Intrinsic.File.CreateDir(v.Local.sSubDir(v.Local.i)) 
+	Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(v.Local.i) 
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Check_Dir_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4345_Auto_Link_Certs_To_PO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Check_Dir.End
+
+Program.Sub.SaveErrors.Start
+F.Intrinsic.Control.SetErrorHandler("SaveErrors_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+V.Local..BulkDeclareString(sFilePath, sTime, sDate)
+
+'save the error log
+Function.Intrinsic.Control.If(V.Global.sLine, <>, "")
+	Function.Intrinsic.String.TimeStringSec(V.Ambient.Time,V.Local.sTime)
+	F.Intrinsic.String.Format(V.Ambient.Date, "YYYYMMDD", V.Local.sDate)
+	F.Intrinsic.String.Build("{0}\Auto_Link\Auto_Link_Errors\ERROR_Log_{1}{2}.txt",v.Caller.FilesDir,V.Local.sDate,V.Local.sTime,V.Local.sFilePath) 
+	F.Intrinsic.File.String2File(V.Local.sFilePath, V.Global.sLine)
+	'save date and time to attach document
+	F.Intrinsic.String.Build("ERROR_Log_{0}{1}.txt",V.Local.sDate,V.Local.sTime, V.Global.sFileNameSend)
+	'email the usergroup
+	F.Intrinsic.Control.CallSub(send_emails)	
+Function.Intrinsic.Control.EndIf
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("SaveErrors_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4345_Auto_Link_Certs_To_PO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.SaveErrors.End
+
+Program.Sub.Send_Emails.Start
+F.Intrinsic.Control.SetErrorHandler("Send_Emails_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local..BulkDeclareString(sEmailRecipients, sSenderEmail, sSenderName, sSenderInfo, sAttachmentFileName, sAttachmentFilePath, sAttachment,sMembers, sMembersEmail, sMembersName)
+V.Local..BulkDeclareLong(iUserID,i)
+
+V.Local.sSenderInfo.Set("donotreply@monti-inc.com*!*Do Not Reply")
+
+F.Global.Security.GetUserId(V.Caller.User,V.Caller.CompanyCode,V.Local.iUserID)
+
+Function.Global.Security.GetGroupMembers("AUTOLINK", V.Local.sMembers) 
+	F.Intrinsic.String.Split(V.Local.sMembers, "*!*", V.Local.sMembers)
+	F.Intrinsic.Control.For(V.Local.i, 0, V.Local.sMembers.UBound, 1)
+	Function.Global.Security.GetUserEmail(V.Local.sMembers(V.Local.i),V.Local.sMembersEmail)
+	Function.Global.Security.GetFullName(V.Local.sMembers(V.Local.i), V.Local.sMembersName) 
+	F.Intrinsic.String.Build("{0}{1}*!*{2}@!@",V.Local.sEmailRecipients,V.Local.sMembersName, V.Local.sMembersEmail,V.Local.sEmailRecipients)
+	F.Intrinsic.Control.Next(V.Local.i)
+
+V.Local.sAttachmentFileName.Set(V.Global.sFileNameSend)
+F.Intrinsic.String.Build("{0}\Auto_Link\Auto_Link_Errors",v.Caller.FilesDir,V.Local.sAttachmentFilePath) 
+V.Local.sAttachmentFilePath.Set(V.Local.sAttachmentFilePath)
+F.Intrinsic.String.Build("{0}*!*{1}" , V.Global.sFileNameSend, V.Local.sAttachmentFilePath,V.Local.sAttachment)
+
+Function.Global.Messaging.QueueMessage(V.Caller.CompanyCode,V.Local.iUserID, V.Caller.Caller,"AUTO LINK ERROR", V.Local.sSenderInfo, V.Local.sEmailRecipients, "", -1, "", FALSE, "", "","", "", "","","",V.Local.sAttachment, False)
+
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Send_Emails_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4345_Auto_Link_Certs_To_PO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Send_Emails.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$DH1$}$1/4/2017 3:07:09 PM$}$False
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$Original customer was SMS Millcraft.
+
+This is a re-write of the original script due to many inconsistencies with the original.
+Program.Sub.Comments.End
